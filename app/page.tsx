@@ -43,17 +43,31 @@ const exercises: Exercise[] = [
 
 function exercisePoster(exercise: Exercise) {
   if (exercise.image) return exercise.image;
-  if (exercise.name === "Разминка в движении") return "/exercises/covers/warmup.png";
-  if (exercise.name === "Спокойная растяжка") return "/exercises/covers/stretch.png";
-  const group = exercise.category === "Пресс" ? "core" : exercise.category === "Руки" ? "arms" : exercise.category === "Спина" ? "back" : exercise.category === "Ноги" ? "legs" : exercise.category === "Ягодицы" ? "glutes" : "core";
-  const place = exercise.place === "Зал" ? "gym" : "home";
-  return `/exercises/covers/${place}-${group}.png`;
+  const animatedPosters: Record<string,string> = {
+    "Разминка в движении":"/exercises/covers/warmup.png",
+    "Спокойная растяжка":"/exercises/covers/stretch.png",
+    "Планка":"/exercises/covers/home-core.png",
+    "Алмазные отжимания":"/exercises/covers/home-arms.png",
+    "Супермен":"/exercises/covers/home-back.png",
+    "Выпады назад":"/exercises/covers/home-legs.png",
+    "Махи ногой назад":"/exercises/covers/home-glutes.png",
+    "Сгибание рук с гантелями":"/exercises/covers/gym-arms.png",
+    "Тяга верхнего блока":"/exercises/covers/gym-back.png",
+    "Жим ногами":"/exercises/covers/gym-legs.png",
+    "Скручивания на блоке":"/exercises/covers/gym-core.png",
+    "Хип-траст со штангой":"/exercises/covers/gym-glutes.png",
+  };
+  if (animatedPosters[exercise.name]) return animatedPosters[exercise.name];
+  return `https://i.ytimg.com/vi/${exercise.videoId}/hqdefault.jpg`;
 }
 
 const meals: Meal[] = [
   { type:"Завтрак", name:"Овсяная каша с ягодами", calories:460, protein:19, time:"10 мин", image:"/meals/breakfast-oats.png", allergens:["Молоко","Орехи"], ingredients:["60 г овсяных хлопьев","150 г греческого йогурта","1/2 банана","80 г голубики","10 г миндаля","1 ч. л. семян чиа"], steps:["Свари овсяные хлопья в воде или молоке 5–7 минут.","Переложи кашу в миску и добавь йогурт.","Выложи банан, ягоды, миндаль и семена чиа."] },
   { type:"Обед", name:"Боул с курицей и киноа", calories:620, protein:48, time:"25 мин", image:"/meals/lunch-chicken-bowl.png", allergens:[], ingredients:["160 г куриной грудки","70 г сухой киноа","200 г овощей","Горсть шпината","1 ч. л. оливкового масла","Лимон и травы"], steps:["Отвари киноа по инструкции на упаковке.","Приправь курицу и обжарь по 5–6 минут с каждой стороны.","Запеки или обжарь овощи, затем собери всё в миске.","Добавь шпинат и заправь лимоном с оливковым маслом."] },
   { type:"Ужин", name:"Лосось с картофелем и спаржей", calories:590, protein:42, time:"30 мин", image:"/meals/dinner-salmon.png", allergens:["Рыба"], ingredients:["170 г филе лосося","220 г молодого картофеля","150 г спаржи","1 ч. л. оливкового масла","Лимон, укроп, перец"], steps:["Разогрей духовку до 200 °C.","Картофель смешай с половиной масла и запекай 15 минут.","Добавь лосось и спаржу, сбрызни оставшимся маслом.","Запекай ещё 12–15 минут и подавай с лимоном."] },
+  { type:"Завтрак", name:"Тост с авокадо и яйцом", calories:430, protein:22, time:"15 мин", image:"/meals/avocado-eggs.png", allergens:["Яйца","Глютен"], ingredients:["2 яйца","2 ломтика цельнозернового хлеба","1/2 авокадо","Помидоры черри","Руккола","Лимон, соль и перец"], steps:["Подсуши хлеб на сухой сковороде.","Разомни авокадо с лимоном и специями.","Приготовь яйца пашот или всмятку.","Собери тосты и подай с томатами и зеленью."] },
+  { type:"Обед", name:"Тефтели из индейки с гречкой", calories:560, protein:46, time:"35 мин", image:"/meals/turkey-buckwheat.png", allergens:["Молоко"], ingredients:["170 г фарша индейки","70 г сухой гречки","Кабачок и сладкий перец","100 г натурального йогурта","Зелень и чеснок"], steps:["Свари гречку до готовности.","Сформируй тефтели и обжарь или запеки 20 минут.","Запеки овощи до мягкости.","Смешай йогурт с зеленью и подай как соус."] },
+  { type:"Перекус", name:"Творожная миска с ягодами", calories:340, protein:30, time:"5 мин", image:"/meals/cottage-berries.png", allergens:["Молоко"], ingredients:["200 г творога 5%","80 г клубники","60 г голубики","1/2 банана","1 ч. л. семян чиа","1 ч. л. мёда"], steps:["Переложи творог в глубокую миску.","Нарежь клубнику и банан.","Добавь все ягоды, семена чиа и немного мёда."] },
 ];
 
 const quizSteps: readonly QuizStep[] = [
@@ -87,6 +101,12 @@ export default function Home() {
   const [muscleFilter, setMuscleFilter] = useState("Все");
   const [placeFilter, setPlaceFilter] = useState("Все места");
   const [openMeal, setOpenMeal] = useState<number | null>(null);
+  const [builderGoal, setBuilderGoal] = useState(initial.goal);
+  const [builderPlace, setBuilderPlace] = useState<"Дом" | "Зал">("Дом");
+  const [builderFocus, setBuilderFocus] = useState("Всё тело");
+  const [builderMinutes, setBuilderMinutes] = useState(30);
+  const [workoutQueue, setWorkoutQueue] = useState<number[]>(exercises.map((_, index) => index));
+  const [editableWorkout, setEditableWorkout] = useState<number[]>([]);
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"sign-up" | "sign-in">("sign-up");
   const [authLoading, setAuthLoading] = useState(false);
@@ -196,7 +216,7 @@ export default function Home() {
     void fetch("/api/profile", { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(answers) });
     setScreen("plan");
   };
-  const selectExercise = (i: number) => { setCurrent(i); setRemaining(exercises[i].seconds); setRunning(false); setScreen("session"); };
+  const selectExercise = (i: number, queue = exercises.map((_, index) => index)) => { setWorkoutQueue(queue); setCurrent(i); setRemaining(exercises[i].seconds); setRunning(false); setScreen("session"); };
   const time = useMemo(() => `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`, [remaining]);
   const nutrition = useMemo(() => {
     const weight = Number(answers.weight) || 65;
@@ -208,6 +228,24 @@ export default function Home() {
     return { calories, water: Math.round(weight * 35 / 100) / 10, protein: Math.round(weight * 1.6), carbs: Math.round(calories * .45 / 4), fats: Math.round(calories * .27 / 9) };
   }, [answers]);
   const filteredExercises = useMemo(() => exercises.map((exercise,index)=>({exercise,index})).filter(({exercise}) => (muscleFilter === "Все" || exercise.category === muscleFilter) && (placeFilter === "Все места" || exercise.place === placeFilter || exercise.place === "Дом и зал")), [muscleFilter,placeFilter]);
+  const personalWorkout = useMemo(() => {
+    const wantedCategories = builderFocus === "Всё тело" ? ["Всё тело","Ноги","Ягодицы","Спина","Руки","Пресс"] : builderFocus.split(" + ");
+    const candidates = exercises.map((exercise,index)=>({exercise,index})).filter(({exercise}) => (exercise.place === builderPlace || exercise.place === "Дом и зал") && wantedCategories.includes(exercise.category));
+    const goalScore = ({exercise}: {exercise:Exercise}) => builderGoal === "Похудение"
+      ? (["Всё тело","Ноги","Пресс"].includes(exercise.category) ? 2 : 0)
+      : builderGoal === "Набор мышц"
+        ? (exercise.place === "Зал" || ["Спина","Ноги","Ягодицы","Руки"].includes(exercise.category) ? 2 : 0)
+        : builderGoal === "Сила и выносливость"
+          ? (["Всё тело","Спина","Ноги"].includes(exercise.category) ? 2 : 0)
+          : 1;
+    const count = Math.max(3, Math.min(16, Math.round(builderMinutes / 5)));
+    return [...candidates].sort((a,b)=>goalScore(b)-goalScore(a)).slice(0,count);
+  }, [builderFocus,builderGoal,builderMinutes,builderPlace]);
+  const replacementExercises = useMemo(() => exercises.map((exercise,index)=>({exercise,index})).filter(({exercise}) => exercise.place === builderPlace || exercise.place === "Дом и зал"), [builderPlace]);
+  useEffect(() => setEditableWorkout(personalWorkout.map(({index})=>index)), [personalWorkout]);
+  const replaceWorkoutExercise = (position: number, exerciseIndex: number) => setEditableWorkout((items)=>items.map((item,index)=>index===position?exerciseIndex:item));
+  const removeWorkoutExercise = (position: number) => setEditableWorkout((items)=>items.filter((_,index)=>index!==position));
+  const currentQueuePosition = Math.max(0, workoutQueue.indexOf(current));
 
   return (
     <main>
@@ -264,6 +302,16 @@ export default function Home() {
       {screen === "plan" && <section className="dashboard">
         <div className="welcome"><div><span>ДОБРО ПОЖАЛОВАТЬ{answers.name ? `, ${answers.name.toUpperCase()}` : ""}</span><h2>Твой план на {answers.period === "Месяц" ? "месяц" : "неделю"}</h2><p>{answers.goal} · {answers.place} · {answers.days} раза в неделю</p></div><div className="streak"><b>3</b><small>дня подряд</small></div></div>
         <div className="week">{["ПН","ВТ","СР","ЧТ","ПТ","СБ","ВС"].map((d,i)=><div className={i===1?"today":i<1?"done":""} key={d}><span>{d}</span><b>{14+i}</b><i>{i<1?"✓":i===1?"•":""}</i></div>)}</div>
+        <div className="workout-builder">
+          <div className="builder-heading"><div><span>ПЕРСОНАЛЬНЫЙ КОНСТРУКТОР</span><h3>Собери тренировку под себя</h3><p>Мы автоматически подберём упражнения под твою цель, место, зоны тела и доступное время.</p></div><div className="builder-time"><strong>{builderMinutes}</strong><small>минут</small></div></div>
+          <div className="builder-controls">
+            <label>Цель<select value={builderGoal} onChange={(e)=>setBuilderGoal(e.target.value)}><option>Похудение</option><option>Набор мышц</option><option>Поддержание формы</option><option>Сила и выносливость</option></select></label>
+            <label>Место<select value={builderPlace} onChange={(e)=>setBuilderPlace(e.target.value as "Дом"|"Зал")}><option>Дом</option><option>Зал</option></select></label>
+            <label>Зоны тела<select value={builderFocus} onChange={(e)=>setBuilderFocus(e.target.value)}><option>Всё тело</option><option>Пресс + Ноги</option><option>Руки</option><option>Спина</option><option>Ноги + Ягодицы</option></select></label>
+            <label>Время<select value={builderMinutes} onChange={(e)=>setBuilderMinutes(Number(e.target.value))}>{[15,20,30,45,60,90,120].map(value=><option key={value} value={value}>{value === 90 ? "1 час 30 минут" : value === 120 ? "2 часа" : `${value} минут`}</option>)}</select></label>
+          </div>
+          <div className="builder-result"><div className="builder-list">{editableWorkout.map((exerciseIndex,index)=><div className="builder-exercise" key={`${index}-${exerciseIndex}`}><b>{String(index+1).padStart(2,"0")}</b><div><strong>{exercises[exerciseIndex].name}</strong><small>{exercises[exerciseIndex].focus} · {exercises[exerciseIndex].reps}</small></div><select aria-label={`Заменить ${exercises[exerciseIndex].name}`} value={exerciseIndex} onChange={(e)=>replaceWorkoutExercise(index,Number(e.target.value))}>{replacementExercises.map(({exercise,index:optionIndex})=><option value={optionIndex} key={optionIndex}>{exercise.name}</option>)}</select><button className="remove-exercise" aria-label={`Убрать ${exercises[exerciseIndex].name}`} title="Убрать упражнение" onClick={()=>removeWorkoutExercise(index)}>×</button></div>)}</div><div className="builder-summary"><small>ТВОЯ ТРЕНИРОВКА</small><strong>{editableWorkout.length} упражнений</strong><p>{builderGoal} · {builderPlace}<br/>{builderFocus} · {builderMinutes === 90 ? "1 час 30 минут" : builderMinutes === 120 ? "2 часа" : `${builderMinutes} минут`}</p><button className="primary" disabled={!editableWorkout.length} onClick={()=>editableWorkout.length&&selectExercise(editableWorkout[0],editableWorkout)}>Начать план <b>→</b></button></div></div>
+        </div>
         <div className="section-title"><div><span>БИБЛИОТЕКА УПРАЖНЕНИЙ</span><h3>Выбери свою тренировку</h3></div><p>{filteredExercises.length} из {exercises.length} упражнений</p></div>
         <div className="exercise-filters"><div><span>Зона тела</span>{["Все","Пресс","Руки","Спина","Ноги","Ягодицы"].map(item=><button key={item} className={muscleFilter===item?"active":""} onClick={()=>setMuscleFilter(item)}>{item}</button>)}</div><div><span>Где</span>{["Все места","Дом","Зал"].map(item=><button key={item} className={placeFilter===item?"active":""} onClick={()=>setPlaceFilter(item)}>{item}</button>)}</div></div>
         <div className="exercise-grid">{filteredExercises.map(({exercise:e,index:i})=><article key={e.name} onClick={()=>selectExercise(i)}><div className={`exercise-art art-${i%6}`}><img src={exercisePoster(e)} alt={`${e.name}: техника выполнения`}/><em>{e.place === "Зал" ? "GYM" : e.place === "Дом" ? "HOME" : "ALL"}</em><button aria-label={`Открыть упражнение: ${e.name}`}>→</button></div><div><small>{e.category} · {e.focus}</small><h4>{e.name}</h4><p>{e.reps}</p></div></article>)}</div>
@@ -285,9 +333,9 @@ export default function Home() {
       </section>}
 
       {screen === "session" && <section className="session">
-        <div className="session-top"><button className="secondary" onClick={()=>{playSignal("finish");setScreen("plan")}}>✕ {t.finish}</button><button className={`sound-toggle ${soundOn?"on":""}`} onClick={()=>setSoundOn(!soundOn)}>{soundOn?"🔊":"🔇"} {t.sound}</button><span>{current + 1} / {exercises.length}</span></div>
+        <div className="session-top"><button className="secondary" onClick={()=>{playSignal("finish");setScreen("plan")}}>✕ {t.finish}</button><button className={`sound-toggle ${soundOn?"on":""}`} onClick={()=>setSoundOn(!soundOn)}>{soundOn?"🔊":"🔇"} {t.sound}</button><span>{currentQueuePosition + 1} / {workoutQueue.length}</span></div>
         <div className="session-card"><div className="media-panel"><div className={`big-art ${mediaMode === "video" ? "video-stage" : "animation-stage"}`}>{mediaMode === "video" ? <iframe key={exercises[current].videoId} src={`https://www.youtube-nocookie.com/embed/${exercises[current].videoId}?rel=0&modestbranding=1&playsinline=1`} title={`${exercises[current].name} — техника выполнения`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen/> : <img key={current} src={exercisePoster(exercises[current])} alt={`${exercises[current].name} — анимационная демонстрация`}/>}<i>{mediaMode === "video" ? "VIDEO GUIDE" : "LIVE MOTION"}</i>{mediaMode === "animation"&&<div className="motion-lines"><span/><span/><span/></div>}</div><div className="media-switch" role="group" aria-label="Формат демонстрации"><button className={mediaMode==="animation"?"active":""} onClick={()=>setMediaMode("animation")}><span>◉</span> Анимация</button><button className={mediaMode==="video"?"active":""} onClick={()=>setMediaMode("video")}><span>▶</span> Видео с YouTube</button></div></div><div className="session-info"><small>{exercises[current].focus}</small><h2>{exercises[current].name}</h2><p>{exercises[current].reps}</p><div className="timer">{time}</div><button className={`primary round ${running?"is-running":""}`} onClick={toggleTimer}>{running ? "Ⅱ" : "▶"}</button><span>{running ? t.pause : t.startTimer}</span></div></div>
-        <div className="session-nav"><button disabled={!current} onClick={()=>{playSignal("rest");selectExercise(current-1)}}>← {t.previous}</button><div>{exercises.map((_,i)=><i key={i} className={i===current?"active":""}/>)}</div><button onClick={()=>{playSignal("rest");current < exercises.length-1 ? selectExercise(current+1) : void completeWorkout()}}>{current === exercises.length-1 ? t.done : t.next} →</button></div>
+        <div className="session-nav"><button disabled={currentQueuePosition===0} onClick={()=>{playSignal("rest");selectExercise(workoutQueue[currentQueuePosition-1],workoutQueue)}}>← {t.previous}</button><div>{workoutQueue.map((exerciseIndex)=><i key={exerciseIndex} className={exerciseIndex===current?"active":""}/>)}</div><button onClick={()=>{playSignal("rest");currentQueuePosition < workoutQueue.length-1 ? selectExercise(workoutQueue[currentQueuePosition+1],workoutQueue) : void completeWorkout()}}>{currentQueuePosition === workoutQueue.length-1 ? t.done : t.next} →</button></div>
       </section>}
     </main>
   );
