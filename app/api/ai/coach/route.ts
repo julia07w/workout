@@ -4,15 +4,15 @@ import { auth } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 export async function POST(request: Request) {
-  if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "OpenAI API key is not configured" }, { status: 503 });
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: "AI-тренер пока недоступен: добавь OPENAI_API_KEY в настройках Vercel." }, { status: 503 });
 
   const session = await auth.getSession();
   if (!session.data?.user) return NextResponse.json({ error: "Сначала войдите в аккаунт" }, { status: 401 });
 
   try {
+    const client = new OpenAI({ apiKey });
     const body = await request.json();
     const exerciseNames = Array.isArray(body.exerciseNames) ? body.exerciseNames.filter((item: unknown) => typeof item === "string").slice(0, 40) : [];
     const profile = {
