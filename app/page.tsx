@@ -3,62 +3,72 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth/client";
 
-type Screen = "home" | "signup" | "quiz" | "plan" | "session" | "nutrition";
+type Screen = "home" | "signup" | "quiz" | "plan" | "exercises" | "stretching" | "progress" | "session" | "nutrition";
+type StretchMode = "morning" | "evening" | "all";
+type StretchMove = { id: string; name: string; seconds: number; instruction: string; image: string; period: "morning" | "evening" };
 type Language = "ru" | "lv" | "en";
-type MediaMode = "animation" | "video";
 type Answers = { name: string; email: string; sex: string; age: string; height: string; weight: string; level: string; goal: string; place: string; period: string; days: string; minutes: string; equipment: string[] };
-type Exercise = { name: string; focus: string; reps: string; seconds: number; icon: string; image?: string; videoId: string; category: "Всё тело" | "Пресс" | "Руки" | "Спина" | "Ноги" | "Ягодицы"; place: "Дом" | "Зал" | "Дом и зал" };
+type Exercise = { name: string; focus: string; reps: string; seconds: number; icon: string; image: string; category: "Всё тело" | "Пресс" | "Руки" | "Спина" | "Ноги" | "Ягодицы" | "Кардио"; place: "Дом" | "Зал" | "Дом и зал" };
 type QuizStep = { key: string; title: string; subtitle: string; kind?: "profile" | "schedule"; options?: readonly string[] };
 type Meal = { type: string; name: string; calories: number; protein: number; time: string; image: string; allergens: string[]; ingredients: string[]; steps: string[] };
+type AiPlan = { title: string; explanation: string; exerciseNames: string[]; coachTips: string[]; meals: { type:string; name:string; note:string }[]; safetyNote:string };
+type ProgressEntry = { id?: string | number; exercise_name: string; duration_seconds: number; completed: boolean; completed_at: string };
 
 const initial: Answers = { name: "", email: "", sex: "", age: "", height: "", weight: "", level: "Новичок", goal: "Поддержание формы", place: "Дом", period: "Неделя", days: "3", minutes: "30", equipment: [] };
 
 const exercises: Exercise[] = [
-  { name:"Разминка в движении", focus:"Всё тело", reps:"3 минуты", seconds:180, icon:"↗", videoId:"GCzecFateXc", category:"Всё тело", place:"Дом и зал" },
-  { name:"Приседания", focus:"Ноги и ягодицы", reps:"3 × 12", seconds:45, icon:"↓", image:"/exercises/squat.png", videoId:"Uv_DKDl7EjA", category:"Ноги", place:"Дом и зал" },
-  { name:"Отжимания с колен", focus:"Грудь и руки", reps:"3 × 8", seconds:40, icon:"↔", image:"/exercises/knee-pushup.png", videoId:"svNswI9wudk", category:"Руки", place:"Дом" },
-  { name:"Ягодичный мост", focus:"Ягодицы и корпус", reps:"3 × 15", seconds:45, icon:"⌁", image:"/exercises/glute-bridge.png", videoId:"h5UOyrVYAhs", category:"Ягодицы", place:"Дом" },
-  { name:"Планка", focus:"Пресс и корпус", reps:"3 × 30 сек", seconds:30, icon:"—", videoId:"mwlp75MS6Rg", category:"Пресс", place:"Дом" },
-  { name:"Мёртвый жук", focus:"Глубокие мышцы пресса", reps:"3 × 10", seconds:40, icon:"✣", videoId:"bxn9FBrt4-A", category:"Пресс", place:"Дом" },
-  { name:"Велосипед", focus:"Пресс и косые мышцы", reps:"3 × 16", seconds:45, icon:"∞", videoId:"9FGilxCbdz8", category:"Пресс", place:"Дом" },
-  { name:"Боковая планка", focus:"Косые мышцы живота", reps:"3 × 25 сек", seconds:25, icon:"◢", videoId:"K2VljzCC16g", category:"Пресс", place:"Дом" },
-  { name:"Алмазные отжимания", focus:"Трицепс и грудь", reps:"3 × 8", seconds:40, icon:"◇", videoId:"J0DnG1_S92I", category:"Руки", place:"Дом" },
-  { name:"Обратные отжимания", focus:"Трицепс", reps:"3 × 10", seconds:40, icon:"⇣", videoId:"0326dy_-CzM", category:"Руки", place:"Дом" },
-  { name:"Супермен", focus:"Поясница и спина", reps:"3 × 12", seconds:40, icon:"↑", videoId:"z6PJMT2y8GQ", category:"Спина", place:"Дом" },
-  { name:"Обратные снежные ангелы", focus:"Верх спины и плечи", reps:"3 × 12", seconds:45, icon:"⌁", videoId:"YB0egDzsu18", category:"Спина", place:"Дом" },
-  { name:"Выпады назад", focus:"Ноги и баланс", reps:"3 × 10", seconds:45, icon:"↙", videoId:"xrPteyQLGAo", category:"Ноги", place:"Дом" },
-  { name:"Махи ногой назад", focus:"Ягодицы", reps:"3 × 15", seconds:40, icon:"↗", videoId:"SJ1Xuz9D-ZQ", category:"Ягодицы", place:"Дом" },
-  { name:"Сгибание рук с гантелями", focus:"Бицепс", reps:"3 × 12", seconds:45, icon:"∪", videoId:"ykJmrZ5v0Oo", category:"Руки", place:"Зал" },
-  { name:"Разгибание рук на блоке", focus:"Трицепс", reps:"3 × 12", seconds:45, icon:"↓", videoId:"2-LAMcpzODU", category:"Руки", place:"Зал" },
-  { name:"Тяга верхнего блока", focus:"Широчайшие мышцы", reps:"3 × 12", seconds:50, icon:"⇓", videoId:"CAwf7n6Luuc", category:"Спина", place:"Зал" },
-  { name:"Тяга горизонтального блока", focus:"Середина спины", reps:"3 × 12", seconds:50, icon:"←", videoId:"B42JiqHrrRw", category:"Спина", place:"Зал" },
-  { name:"Жим ногами", focus:"Квадрицепс и ягодицы", reps:"4 × 10", seconds:55, icon:"↗", videoId:"IZxyjW7MPJQ", category:"Ноги", place:"Зал" },
-  { name:"Разгибание ног", focus:"Квадрицепс", reps:"3 × 12", seconds:45, icon:"⌝", videoId:"YyvSfVjQeL0", category:"Ноги", place:"Зал" },
-  { name:"Сгибание ног в тренажёре", focus:"Задняя поверхность бедра", reps:"3 × 12", seconds:45, icon:"⌞", videoId:"1Tq3QdYUuHs", category:"Ноги", place:"Зал" },
-  { name:"Хип-траст со штангой", focus:"Ягодицы", reps:"4 × 10", seconds:55, icon:"⌃", videoId:"SEdqd1n0cvg", category:"Ягодицы", place:"Зал" },
-  { name:"Отведение ног в тренажёре", focus:"Средняя ягодичная", reps:"3 × 15", seconds:45, icon:"↔", videoId:"jf9PBwwNAMs", category:"Ягодицы", place:"Зал" },
-  { name:"Скручивания на блоке", focus:"Пресс", reps:"3 × 15", seconds:45, icon:"⌒", videoId:"AV5PmZJIrrw", category:"Пресс", place:"Зал" },
-  { name:"Спокойная растяжка", focus:"Всё тело", reps:"4 минуты", seconds:240, icon:"○", videoId:"8GL73mrsvJ8", category:"Всё тело", place:"Дом и зал" },
+  { name:"Разминка в движении", focus:"Всё тело", reps:"3 минуты", seconds:180, icon:"↗", image:"/exercises/warmup.png", category:"Всё тело", place:"Дом и зал" },
+  { name:"Приседания", focus:"Ноги и ягодицы", reps:"3 × 12", seconds:45, icon:"↓", image:"/exercises/squat.png", category:"Ноги", place:"Дом и зал" },
+  { name:"Отжимания с колен", focus:"Грудь и руки", reps:"3 × 8", seconds:40, icon:"↔", image:"/exercises/knee-pushup.png", category:"Руки", place:"Дом" },
+  { name:"Ягодичный мост", focus:"Ягодицы и корпус", reps:"3 × 15", seconds:45, icon:"⌁", image:"/exercises/glute-bridge.png", category:"Ягодицы", place:"Дом" },
+  { name:"Планка", focus:"Пресс и корпус", reps:"3 × 30 сек", seconds:30, icon:"—", image:"/exercises/plank-v2.png", category:"Пресс", place:"Дом" },
+  { name:"Мёртвый жук", focus:"Глубокие мышцы пресса", reps:"3 × 10", seconds:40, icon:"✣", image:"/exercises/dead-bug.png", category:"Пресс", place:"Дом" },
+  { name:"Велосипед", focus:"Пресс и косые мышцы", reps:"3 × 16", seconds:45, icon:"∞", image:"/exercises/bicycle-crunch.png", category:"Пресс", place:"Дом" },
+  { name:"Боковая планка", focus:"Косые мышцы живота", reps:"3 × 25 сек", seconds:25, icon:"◢", image:"/exercises/side-plank.png", category:"Пресс", place:"Дом" },
+  { name:"Алмазные отжимания", focus:"Трицепс и грудь", reps:"3 × 8", seconds:40, icon:"◇", image:"/exercises/diamond-pushup.png", category:"Руки", place:"Дом" },
+  { name:"Обратные отжимания", focus:"Трицепс", reps:"3 × 10", seconds:40, icon:"⇣", image:"/exercises/bench-dips.png", category:"Руки", place:"Дом" },
+  { name:"Супермен", focus:"Поясница и спина", reps:"3 × 12", seconds:40, icon:"↑", image:"/exercises/superman.png", category:"Спина", place:"Дом" },
+  { name:"Обратные снежные ангелы", focus:"Верх спины и плечи", reps:"3 × 12", seconds:45, icon:"⌁", image:"/exercises/reverse-snow-angels.png", category:"Спина", place:"Дом" },
+  { name:"Выпады назад", focus:"Ноги и баланс", reps:"3 × 10", seconds:45, icon:"↙", image:"/exercises/reverse-lunge.png", category:"Ноги", place:"Дом" },
+  { name:"Махи ногой назад", focus:"Ягодицы", reps:"3 × 15", seconds:40, icon:"↗", image:"/exercises/glute-kickback-home.png", category:"Ягодицы", place:"Дом" },
+  { name:"Сгибание рук с гантелями", focus:"Бицепс", reps:"3 × 12", seconds:45, icon:"∪", image:"/exercises/dumbbell-curl.png", category:"Руки", place:"Зал" },
+  { name:"Разгибание рук на блоке", focus:"Трицепс", reps:"3 × 12", seconds:45, icon:"↓", image:"/exercises/cable-triceps-pushdown.png", category:"Руки", place:"Зал" },
+  { name:"Тяга верхнего блока", focus:"Широчайшие мышцы", reps:"3 × 12", seconds:50, icon:"⇓", image:"/exercises/lat-pulldown.png", category:"Спина", place:"Зал" },
+  { name:"Тяга горизонтального блока", focus:"Середина спины", reps:"3 × 12", seconds:50, icon:"←", image:"/exercises/seated-cable-row.png", category:"Спина", place:"Зал" },
+  { name:"Жим ногами", focus:"Квадрицепс и ягодицы", reps:"4 × 10", seconds:55, icon:"↗", image:"/exercises/leg-press.png", category:"Ноги", place:"Зал" },
+  { name:"Разгибание ног", focus:"Квадрицепс", reps:"3 × 12", seconds:45, icon:"⌝", image:"/exercises/leg-extension.png", category:"Ноги", place:"Зал" },
+  { name:"Сгибание ног лёжа в тренажёре", focus:"Задняя поверхность бедра", reps:"3 × 12", seconds:45, icon:"⌞", image:"/exercises/lying-leg-curl.png", category:"Ноги", place:"Зал" },
+  { name:"Хип-траст со штангой", focus:"Ягодицы", reps:"4 × 10", seconds:55, icon:"⌃", image:"/exercises/barbell-hip-thrust.png", category:"Ягодицы", place:"Зал" },
+  { name:"Разведение ног в тренажёре", focus:"Ягодицы · ноги в стороны", reps:"3 × 15", seconds:45, icon:"↔", image:"/exercises/hip-abduction-machine-v2.png", category:"Ягодицы", place:"Зал" },
+  { name:"Сведение ног в тренажёре", focus:"Внутренняя поверхность бедра · ноги вместе", reps:"3 × 15", seconds:45, icon:"→←", image:"/exercises/hip-adduction-machine.png", category:"Ноги", place:"Зал" },
+  { name:"Гиперэкстензия", focus:"Спина, ягодицы и задняя поверхность бедра", reps:"3 × 12", seconds:45, icon:"↗", image:"/exercises/hyperextension.png", category:"Спина", place:"Зал" },
+  { name:"Отведение ноги назад в кроссовере", focus:"Ягодицы", reps:"3 × 12 на каждую ногу", seconds:45, icon:"↗", image:"/exercises/cable-kickback-standing.png", category:"Ягодицы", place:"Зал" },
+  { name:"Отведение ноги на блоке с опорой на скамью", focus:"Ягодицы", reps:"3 × 12 на каждую ногу", seconds:45, icon:"↗", image:"/exercises/cable-kickback-bench.png", category:"Ягодицы", place:"Зал" },
+  { name:"Тяга гантели одной рукой в наклоне", focus:"Широчайшие мышцы спины", reps:"3 × 12 на каждую руку", seconds:45, icon:"↖", image:"/exercises/dumbbell-row.png", category:"Спина", place:"Зал" },
+  { name:"Скручивания на блоке", focus:"Пресс", reps:"3 × 15", seconds:45, icon:"⌒", image:"/exercises/cable-crunch.png", category:"Пресс", place:"Зал" },
+  { name:"Зашагивания на платформу", focus:"Ягодицы и ноги", reps:"3 × 12 на каждую ногу", seconds:50, icon:"↥", image:"/exercises/step-up.png", category:"Ягодицы", place:"Дом и зал" },
+  { name:"Русские скручивания с мячом", focus:"Пресс и косые мышцы живота", reps:"3 × 16 поворотов", seconds:45, icon:"↔", image:"/exercises/russian-twist.png", category:"Пресс", place:"Дом и зал" },
+  { name:"Болгарские выпады с гантелями", focus:"Ягодицы и ноги", reps:"3 × 10 на каждую ногу", seconds:50, icon:"↘", image:"/exercises/bulgarian-split-squat.png", category:"Ягодицы", place:"Зал" },
+  { name:"Румынская тяга со штангой", focus:"Ягодицы и задняя поверхность бедра", reps:"3 × 10", seconds:50, icon:"↓", image:"/exercises/romanian-deadlift.png", category:"Ноги", place:"Зал" },
+  { name:"Приседания в тренажёре Смита", focus:"Ноги и ягодицы", reps:"3 × 10", seconds:50, icon:"↕", image:"/exercises/smith-squat.png", category:"Ноги", place:"Зал" },
+  { name:"Кардио на беговой дорожке", focus:"Выносливость и жиросжигание", reps:"20 минут", seconds:1200, icon:"↗", image:"/exercises/treadmill.png", category:"Кардио", place:"Зал" },
+  { name:"Кардио на велотренажёре", focus:"Выносливость и ноги", reps:"20 минут", seconds:1200, icon:"◉", image:"/exercises/stationary-bike.png", category:"Кардио", place:"Зал" },
+  { name:"Кардио на лестнице", focus:"Ягодицы, ноги и выносливость", reps:"20 минут", seconds:1200, icon:"⇈", image:"/exercises/stair-climber.png", category:"Кардио", place:"Зал" },
+];
+
+const stretchMoves: StretchMove[] = [
+  { id:"neck-release", name:"Мягкие наклоны шеи", seconds:60, instruction:"Медленно наклони голову к плечу. Не дави рукой; через 30 секунд поменяй сторону.", image:"/stretching/neck-release.png", period:"morning" },
+  { id:"cat-cow", name:"Кошка — корова", seconds:60, instruction:"Встань на четвереньки. На вдохе раскрой грудь, на выдохе округли спину. Двигайся плавно.", image:"/stretching/cat-cow.png", period:"morning" },
+  { id:"side-reach", name:"Боковое вытяжение", seconds:60, instruction:"Сядь удобно и потянись рукой над головой в сторону. По 30 секунд на каждую сторону.", image:"/stretching/side-reach.png", period:"morning" },
+  { id:"hip-flexor-lunge", name:"Выпад с раскрытием таза", seconds:60, instruction:"Опусти одно колено на пол и мягко подай таз вперёд. По 30 секунд на каждую ногу.", image:"/stretching/hip-flexor-lunge.png", period:"morning" },
+  { id:"child-pose", name:"Поза ребёнка", seconds:60, instruction:"Опусти таз к пяткам и вытяни руки вперёд. Дыши спокойно, не тянись через боль.", image:"/stretching/child-pose.png", period:"evening" },
+  { id:"figure-four", name:"Растяжка ягодиц лёжа", seconds:60, instruction:"Лёжа на спине, положи лодыжку на противоположное колено. По 30 секунд на сторону.", image:"/stretching/figure-four.png", period:"evening" },
+  { id:"seated-forward-fold", name:"Наклон к прямым ногам", seconds:60, instruction:"Сядь с вытянутыми ногами и наклоняйся от таза с ровной спиной. Без рывков.", image:"/stretching/seated-forward-fold.png", period:"evening" },
+  { id:"supine-twist", name:"Скручивание лёжа", seconds:60, instruction:"Лёжа на спине, мягко опусти согнутое колено в сторону. По 30 секунд на сторону.", image:"/stretching/supine-twist.png", period:"evening" },
 ];
 
 function exercisePoster(exercise: Exercise) {
-  if (exercise.image) return exercise.image;
-  const animatedPosters: Record<string,string> = {
-    "Разминка в движении":"/exercises/covers/warmup.png",
-    "Спокойная растяжка":"/exercises/covers/stretch.png",
-    "Планка":"/exercises/covers/home-core.png",
-    "Алмазные отжимания":"/exercises/covers/home-arms.png",
-    "Супермен":"/exercises/covers/home-back.png",
-    "Выпады назад":"/exercises/covers/home-legs.png",
-    "Махи ногой назад":"/exercises/covers/home-glutes.png",
-    "Сгибание рук с гантелями":"/exercises/covers/gym-arms.png",
-    "Тяга верхнего блока":"/exercises/covers/gym-back.png",
-    "Жим ногами":"/exercises/covers/gym-legs.png",
-    "Скручивания на блоке":"/exercises/covers/gym-core.png",
-    "Хип-траст со штангой":"/exercises/covers/gym-glutes.png",
-  };
-  if (animatedPosters[exercise.name]) return animatedPosters[exercise.name];
-  return `https://i.ytimg.com/vi/${exercise.videoId}/hqdefault.jpg`;
+  return exercise.image;
 }
 
 const meals: Meal[] = [
@@ -89,6 +99,11 @@ const copy = {
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
+  const [stretchMode, setStretchMode] = useState<StretchMode>("morning");
+  const [completedStretches, setCompletedStretches] = useState<string[]>([]);
+  const visibleStretches = stretchMoves.filter((move) => stretchMode === "all" || move.period === stretchMode);
+  const stretchMinutes = visibleStretches.reduce((total, move) => total + move.seconds, 0) / 60;
+  const stretchCompleted = visibleStretches.filter((move) => completedStretches.includes(move.id)).length;
   const [answers, setAnswers] = useState<Answers>(initial);
   const [step, setStep] = useState(0);
   const [current, setCurrent] = useState(0);
@@ -97,7 +112,6 @@ export default function Home() {
   const [language, setLanguage] = useState<Language>("ru");
   const [languageOpen, setLanguageOpen] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
-  const [mediaMode, setMediaMode] = useState<MediaMode>("animation");
   const [muscleFilter, setMuscleFilter] = useState("Все");
   const [placeFilter, setPlaceFilter] = useState("Все места");
   const [openMeal, setOpenMeal] = useState<number | null>(null);
@@ -105,13 +119,21 @@ export default function Home() {
   const [builderPlace, setBuilderPlace] = useState<"Дом" | "Зал">("Дом");
   const [builderFocus, setBuilderFocus] = useState("Всё тело");
   const [builderMinutes, setBuilderMinutes] = useState(30);
+  const [builderCardio, setBuilderCardio] = useState("Без кардио");
+  const [cardioMinutes, setCardioMinutes] = useState(20);
   const [workoutQueue, setWorkoutQueue] = useState<number[]>(exercises.map((_, index) => index));
   const [editableWorkout, setEditableWorkout] = useState<number[]>([]);
+  const [aiPlan, setAiPlan] = useState<AiPlan | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"sign-up" | "sign-in">("sign-up");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [progressEntries, setProgressEntries] = useState<ProgressEntry[]>([]);
+  const [progressLoading, setProgressLoading] = useState(false);
+  const [progressError, setProgressError] = useState("");
   const audioContext = useRef<AudioContext | null>(null);
   const t = copy[language];
 
@@ -127,6 +149,10 @@ export default function Home() {
       playSignal("finish");
     }
   }, [remaining, running]);
+
+  useEffect(() => {
+    if (builderPlace === "Дом") setBuilderCardio("Без кардио");
+  }, [builderPlace]);
 
   useEffect(() => {
     void (async () => {
@@ -174,6 +200,7 @@ export default function Home() {
 
   const toggleTimer = () => {
     if (!running) playSignal("start");
+    if (!running && remaining === 0) setRemaining(exercises[current].category === "Кардио" ? cardioMinutes * 60 : exercises[current].seconds);
     setRunning(!running);
   };
 
@@ -204,8 +231,25 @@ export default function Home() {
     setScreen("home");
   };
 
+  const openProgress = async () => {
+    setScreen("progress");
+    setProgressError("");
+    if (!isAuthenticated) return;
+    setProgressLoading(true);
+    try {
+      const response = await fetch("/api/progress", { cache:"no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Не удалось загрузить прогресс");
+      setProgressEntries(data.progress ?? []);
+    } catch (error) {
+      setProgressError(error instanceof Error ? error.message : "Не удалось загрузить прогресс");
+    } finally {
+      setProgressLoading(false);
+    }
+  };
+
   const completeWorkout = () => {
-    void fetch("/api/progress", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ exerciseName:exercises[current].name, durationSeconds:exercises[current].seconds, completed:true }) });
+    void fetch("/api/progress", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ exerciseName:exercises[current].name, durationSeconds:exercises[current].category === "Кардио" ? cardioMinutes * 60 : exercises[current].seconds, completed:true }) });
     setScreen("plan");
   };
 
@@ -216,7 +260,7 @@ export default function Home() {
     void fetch("/api/profile", { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(answers) });
     setScreen("plan");
   };
-  const selectExercise = (i: number, queue = exercises.map((_, index) => index)) => { setWorkoutQueue(queue); setCurrent(i); setRemaining(exercises[i].seconds); setRunning(false); setScreen("session"); };
+  const selectExercise = (i: number, queue = exercises.map((_, index) => index)) => { setWorkoutQueue(queue); setCurrent(i); setRemaining(exercises[i].category === "Кардио" ? cardioMinutes * 60 : exercises[i].seconds); setRunning(false); setScreen("session"); };
   const time = useMemo(() => `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`, [remaining]);
   const nutrition = useMemo(() => {
     const weight = Number(answers.weight) || 65;
@@ -230,7 +274,7 @@ export default function Home() {
   const filteredExercises = useMemo(() => exercises.map((exercise,index)=>({exercise,index})).filter(({exercise}) => (muscleFilter === "Все" || exercise.category === muscleFilter) && (placeFilter === "Все места" || exercise.place === placeFilter || exercise.place === "Дом и зал")), [muscleFilter,placeFilter]);
   const personalWorkout = useMemo(() => {
     const wantedCategories = builderFocus === "Всё тело" ? ["Всё тело","Ноги","Ягодицы","Спина","Руки","Пресс"] : builderFocus.split(" + ");
-    const candidates = exercises.map((exercise,index)=>({exercise,index})).filter(({exercise}) => (exercise.place === builderPlace || exercise.place === "Дом и зал") && wantedCategories.includes(exercise.category));
+    const candidates = exercises.map((exercise,index)=>({exercise,index})).filter(({exercise}) => exercise.category !== "Кардио" && (exercise.place === builderPlace || exercise.place === "Дом и зал") && wantedCategories.includes(exercise.category));
     const goalScore = ({exercise}: {exercise:Exercise}) => builderGoal === "Похудение"
       ? (["Всё тело","Ноги","Пресс"].includes(exercise.category) ? 2 : 0)
       : builderGoal === "Набор мышц"
@@ -238,18 +282,56 @@ export default function Home() {
         : builderGoal === "Сила и выносливость"
           ? (["Всё тело","Спина","Ноги"].includes(exercise.category) ? 2 : 0)
           : 1;
-    const count = Math.max(3, Math.min(16, Math.round(builderMinutes / 5)));
+    const cardioTime = builderPlace === "Зал" && builderCardio !== "Без кардио" ? cardioMinutes : 0;
+    const count = Math.max(0, Math.round(Math.max(0, builderMinutes - cardioTime) / 15));
     return [...candidates].sort((a,b)=>goalScore(b)-goalScore(a)).slice(0,count);
-  }, [builderFocus,builderGoal,builderMinutes,builderPlace]);
+  }, [builderFocus,builderGoal,builderMinutes,builderPlace,builderCardio,cardioMinutes]);
   const replacementExercises = useMemo(() => exercises.map((exercise,index)=>({exercise,index})).filter(({exercise}) => exercise.place === builderPlace || exercise.place === "Дом и зал"), [builderPlace]);
-  useEffect(() => setEditableWorkout(personalWorkout.map(({index})=>index)), [personalWorkout]);
+  useEffect(() => {
+    const strength = personalWorkout.map(({index})=>index);
+    const cardioIndex = exercises.findIndex((exercise)=>exercise.name === builderCardio);
+    setEditableWorkout(cardioIndex >= 0 ? [...strength,cardioIndex] : strength);
+  }, [personalWorkout,builderCardio]);
   const replaceWorkoutExercise = (position: number, exerciseIndex: number) => setEditableWorkout((items)=>items.map((item,index)=>index===position?exerciseIndex:item));
   const removeWorkoutExercise = (position: number) => setEditableWorkout((items)=>items.filter((_,index)=>index!==position));
+  const addWorkoutExercise = () => {
+    const wantedCategories = builderFocus === "Всё тело" ? ["Всё тело","Ноги","Ягодицы","Спина","Руки","Пресс"] : builderFocus.split(" + ");
+    const available = replacementExercises.filter(({exercise,index})=>exercise.category !== "Кардио" && !editableWorkout.includes(index));
+    const next = available.find(({exercise})=>wantedCategories.includes(exercise.category)) ?? available[0];
+    if (next) setEditableWorkout((items)=>[...items,next.index]);
+  };
+  const generateAiPlan = async () => {
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const available = replacementExercises.map(({exercise})=>exercise.name);
+      const response = await fetch("/api/ai/coach", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ profile:answers, goal:builderGoal, place:builderPlace, focus:builderFocus, minutes:builderMinutes, cardio:builderCardio, cardioMinutes, exerciseNames:available }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Не удалось получить ответ AI");
+      const plan = data as AiPlan;
+      const indices = plan.exerciseNames.map((name)=>exercises.findIndex((exercise)=>exercise.name===name)).filter((index)=>index>=0);
+      if (indices.length) {
+        const cardioTime = builderPlace === "Зал" && builderCardio !== "Без кардио" ? cardioMinutes : 0;
+        const strengthLimit = Math.max(0, Math.round(Math.max(0, builderMinutes - cardioTime) / 15));
+        const strength = Array.from(new Set(indices)).filter((index)=>exercises[index].category !== "Кардио").slice(0,strengthLimit);
+        const cardioIndex = exercises.findIndex((exercise)=>exercise.name === builderCardio);
+        setEditableWorkout(cardioIndex >= 0 ? [...strength,cardioIndex] : strength);
+      }
+      setAiPlan(plan);
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "Не удалось составить AI-план");
+    } finally {
+      setAiLoading(false);
+    }
+  };
   const currentQueuePosition = Math.max(0, workoutQueue.indexOf(current));
+  const isTimedExercise = exercises[current].category === "Кардио" || ["Планка", "Боковая планка", "Разминка в движении"].includes(exercises[current].name);
+  const completedMinutes = Math.round(progressEntries.reduce((sum,item)=>sum + Number(item.duration_seconds || 0),0) / 60);
+  const completedDays = new Set(progressEntries.map((item)=>new Date(item.completed_at).toLocaleDateString("ru-RU"))).size;
 
   return (
     <main>
-      <header><Logo /><nav><button onClick={() => setScreen("plan")}>{t.programs}</button><button>{t.exercises}</button><button onClick={() => setScreen("nutrition")}>Питание</button><button>{t.progress}</button></nav><div className="header-tools"><div className={`language-menu ${languageOpen ? "open" : ""}`}><button className="language-trigger" onClick={()=>setLanguageOpen(!languageOpen)} aria-expanded={languageOpen} aria-label="Choose language"><span className="globe">◎</span><b>{language.toUpperCase()}</b><i>⌄</i></button>{languageOpen && <div className="language-popover">{(["ru","lv","en"] as Language[]).map((code)=><button key={code} className={language===code?"active":""} onClick={()=>{setLanguage(code);setLanguageOpen(false)}}><span>{code === "ru" ? "Русский" : code === "lv" ? "Latviešu" : "English"}</span><b>{code.toUpperCase()}</b>{language===code&&<i>✓</i>}</button>)}</div>}</div><button className="profile" title={isAuthenticated ? "Выйти из аккаунта" : "Войти"} onClick={()=>isAuthenticated ? void signOut() : setScreen("signup")}>{isAuthenticated ? "✓" : "Ю"}</button></div></header>
+      <header><Logo /><nav><button className={screen==="plan"?"active":""} onClick={() => setScreen("plan")}>{t.programs}</button><button className={screen==="exercises"?"active":""} onClick={()=>setScreen("exercises")}>{t.exercises}</button><button className={screen==="stretching"?"active":""} onClick={()=>setScreen("stretching")}>Растяжка</button><button className={screen==="nutrition"?"active":""} onClick={() => setScreen("nutrition")}>Питание</button><button className={screen==="progress"?"active":""} onClick={()=>void openProgress()}>{t.progress}</button></nav><div className="header-tools"><div className={`language-menu ${languageOpen ? "open" : ""}`}><button className="language-trigger" onClick={()=>setLanguageOpen(!languageOpen)} aria-expanded={languageOpen} aria-label="Choose language"><span className="globe">◎</span><b>{language.toUpperCase()}</b><i>⌄</i></button>{languageOpen && <div className="language-popover">{(["ru","lv","en"] as Language[]).map((code)=><button key={code} className={language===code?"active":""} onClick={()=>{setLanguage(code);setLanguageOpen(false)}}><span>{code === "ru" ? "Русский" : code === "lv" ? "Latviešu" : "English"}</span><b>{code.toUpperCase()}</b>{language===code&&<i>✓</i>}</button>)}</div>}</div><button className="profile" title={isAuthenticated ? "Выйти из аккаунта" : "Войти"} onClick={()=>isAuthenticated ? void signOut() : setScreen("signup")}>{isAuthenticated ? "✓" : "Ю"}</button></div></header>
 
       {screen === "home" && <><section className="hero">
         <div className="eyebrow">{t.eyebrow}</div>
@@ -262,7 +344,7 @@ export default function Home() {
       <section className="about-platform" id="about">
         <div className="about-heading"><span>ВСЁ В ОДНОМ МЕСТЕ</span><h2>План, который заботится<br/>не только о тренировках</h2><p>WORK OUT объединяет движение, питание и понятный прогресс — с рекомендациями именно под твои параметры и цель.</p></div>
         <div className="feature-cards">
-          <article><i>01</i><div className="feature-icon">▶</div><h3>Персональные тренировки</h3><p>Дом или зал, видео правильной техники, таймеры и нагрузка на неделю или месяц.</p></article>
+          <article><i>01</i><div className="feature-icon">✦</div><h3>Персональные тренировки</h3><p>Дом или зал, фотографии упражнений, подходы и нагрузка на неделю или месяц.</p></article>
           <article><i>02</i><div className="feature-icon">◌</div><h3>Умное питание</h3><p>Расчёт калорий, воды и макронутриентов по росту, весу, полу, возрасту и цели.</p></article>
           <article><i>03</i><div className="feature-icon">⌁</div><h3>Готовое меню</h3><p>Завтрак, обед и ужин с фотографиями, рецептом, калорийностью и аллергенами.</p></article>
         </div>
@@ -309,14 +391,48 @@ export default function Home() {
             <label>Место<select value={builderPlace} onChange={(e)=>setBuilderPlace(e.target.value as "Дом"|"Зал")}><option>Дом</option><option>Зал</option></select></label>
             <label>Зоны тела<select value={builderFocus} onChange={(e)=>setBuilderFocus(e.target.value)}><option>Всё тело</option><option>Пресс + Ноги</option><option>Руки</option><option>Спина</option><option>Ноги + Ягодицы</option></select></label>
             <label>Время<select value={builderMinutes} onChange={(e)=>setBuilderMinutes(Number(e.target.value))}>{[15,20,30,45,60,90,120].map(value=><option key={value} value={value}>{value === 90 ? "1 час 30 минут" : value === 120 ? "2 часа" : `${value} минут`}</option>)}</select></label>
+            <label>Кардио в зале<select value={builderCardio} disabled={builderPlace !== "Зал"} onChange={(e)=>setBuilderCardio(e.target.value)}><option>Без кардио</option><option>Кардио на беговой дорожке</option><option>Кардио на велотренажёре</option><option>Кардио на лестнице</option></select></label>
+            <label>Время кардио<select value={cardioMinutes} disabled={builderCardio === "Без кардио"} onChange={(e)=>setCardioMinutes(Number(e.target.value))}>{[5,10,15,20,30,40,45,60].map(value=><option key={value} value={value}>{value} минут</option>)}</select></label>
           </div>
-          <div className="builder-result"><div className="builder-list">{editableWorkout.map((exerciseIndex,index)=><div className="builder-exercise" key={`${index}-${exerciseIndex}`}><b>{String(index+1).padStart(2,"0")}</b><div><strong>{exercises[exerciseIndex].name}</strong><small>{exercises[exerciseIndex].focus} · {exercises[exerciseIndex].reps}</small></div><select aria-label={`Заменить ${exercises[exerciseIndex].name}`} value={exerciseIndex} onChange={(e)=>replaceWorkoutExercise(index,Number(e.target.value))}>{replacementExercises.map(({exercise,index:optionIndex})=><option value={optionIndex} key={optionIndex}>{exercise.name}</option>)}</select><button className="remove-exercise" aria-label={`Убрать ${exercises[exerciseIndex].name}`} title="Убрать упражнение" onClick={()=>removeWorkoutExercise(index)}>×</button></div>)}</div><div className="builder-summary"><small>ТВОЯ ТРЕНИРОВКА</small><strong>{editableWorkout.length} упражнений</strong><p>{builderGoal} · {builderPlace}<br/>{builderFocus} · {builderMinutes === 90 ? "1 час 30 минут" : builderMinutes === 120 ? "2 часа" : `${builderMinutes} минут`}</p><button className="primary" disabled={!editableWorkout.length} onClick={()=>editableWorkout.length&&selectExercise(editableWorkout[0],editableWorkout)}>Начать план <b>→</b></button></div></div>
+          <div className="builder-result"><div className="builder-list">{editableWorkout.map((exerciseIndex,index)=><div className={`builder-exercise ${exercises[exerciseIndex].category === "Кардио" ? "cardio-item" : ""}`} key={`${index}-${exerciseIndex}`}><b>{String(index+1).padStart(2,"0")}</b><div><strong>{exercises[exerciseIndex].name}</strong><small>{exercises[exerciseIndex].focus} · {exercises[exerciseIndex].category === "Кардио" ? `${cardioMinutes} минут` : exercises[exerciseIndex].reps}</small></div><select aria-label={`Заменить ${exercises[exerciseIndex].name}`} value={exerciseIndex} onChange={(e)=>replaceWorkoutExercise(index,Number(e.target.value))}>{replacementExercises.map(({exercise,index:optionIndex})=><option value={optionIndex} key={optionIndex}>{exercise.name}</option>)}</select><button className="remove-exercise" aria-label={`Убрать ${exercises[exerciseIndex].name}`} title="Убрать упражнение" onClick={()=>removeWorkoutExercise(index)}>×</button></div>)}<button className="add-exercise" type="button" onClick={addWorkoutExercise} disabled={!replacementExercises.some(({exercise,index})=>exercise.category !== "Кардио" && !editableWorkout.includes(index))}><b>＋</b> Добавить упражнение</button></div><div className="builder-summary"><small>ТВОЯ ТРЕНИРОВКА</small><strong>{editableWorkout.length} упражнений</strong><p>{builderGoal} · {builderPlace}<br/>{builderFocus} · {builderMinutes === 90 ? "1 час 30 минут" : builderMinutes === 120 ? "2 часа" : `${builderMinutes} минут`}{builderCardio !== "Без кардио" && <><br/>{builderCardio.replace("Кардио на ","")} · {cardioMinutes} минут</>}</p><button className="primary" disabled={!editableWorkout.length} onClick={()=>editableWorkout.length&&selectExercise(editableWorkout[0],editableWorkout)}>Начать план <b>→</b></button></div></div>
+          <div className="ai-coach-actions"><div><span>✦ AI-ТРЕНЕР</span><p>OpenAI проанализирует параметры и перестроит упражнения и питание под выбранную цель.</p></div><button className="ai-generate" disabled={aiLoading} onClick={()=>void generateAiPlan()}>{aiLoading ? "Составляю план…" : "Составить план с AI"}</button></div>
+          {aiError && <div className="ai-error">{aiError}</div>}
+          {aiPlan && <div className="ai-plan"><div className="ai-plan-intro"><span>ПЛАН ОТ AI-ТРЕНЕРА</span><h4>{aiPlan.title}</h4><p>{aiPlan.explanation}</p></div><div><h5>Советы тренера</h5><ul>{aiPlan.coachTips.map((tip)=><li key={tip}>{tip}</li>)}</ul></div><div><h5>Идеи питания</h5><ul>{aiPlan.meals.map((meal)=><li key={`${meal.type}-${meal.name}`}><b>{meal.type}: {meal.name}</b><small>{meal.note}</small></li>)}</ul></div><p className="ai-safety">{aiPlan.safetyNote}</p></div>}
         </div>
         <div className="section-title"><div><span>БИБЛИОТЕКА УПРАЖНЕНИЙ</span><h3>Выбери свою тренировку</h3></div><p>{filteredExercises.length} из {exercises.length} упражнений</p></div>
-        <div className="exercise-filters"><div><span>Зона тела</span>{["Все","Пресс","Руки","Спина","Ноги","Ягодицы"].map(item=><button key={item} className={muscleFilter===item?"active":""} onClick={()=>setMuscleFilter(item)}>{item}</button>)}</div><div><span>Где</span>{["Все места","Дом","Зал"].map(item=><button key={item} className={placeFilter===item?"active":""} onClick={()=>setPlaceFilter(item)}>{item}</button>)}</div></div>
+        <div className="exercise-filters"><div><span>Зона тела</span>{["Все","Пресс","Руки","Спина","Ноги","Ягодицы","Кардио"].map(item=><button key={item} className={muscleFilter===item?"active":""} onClick={()=>setMuscleFilter(item)}>{item}</button>)}<button className="stretch-filter" onClick={()=>setScreen("stretching")}>Растяжка ↗</button></div><div><span>Где</span>{["Все места","Дом","Зал"].map(item=><button key={item} className={placeFilter===item?"active":""} onClick={()=>setPlaceFilter(item)}>{item}</button>)}</div></div>
         <div className="exercise-grid">{filteredExercises.map(({exercise:e,index:i})=><article key={e.name} onClick={()=>selectExercise(i)}><div className={`exercise-art art-${i%6}`}><img src={exercisePoster(e)} alt={`${e.name}: техника выполнения`}/><em>{e.place === "Зал" ? "GYM" : e.place === "Дом" ? "HOME" : "ALL"}</em><button aria-label={`Открыть упражнение: ${e.name}`}>→</button></div><div><small>{e.category} · {e.focus}</small><h4>{e.name}</h4><p>{e.reps}</p></div></article>)}</div>
+        <button className="stretching-shortcut" onClick={()=>setScreen("stretching")}><span>ОТДЕЛЬНЫЙ РАЗДЕЛ</span><strong>Растяжка для утра и вечера</strong><small>Мягкие комплексы по 4 минуты или полный комплекс за 8 минут</small><b>Открыть растяжку →</b></button>
         <button className="primary start-session hero-button" onClick={()=>selectExercise(0)}><span>{t.start}</span><b>→</b></button>
         <button className="nutrition-banner" onClick={()=>setScreen("nutrition")}><span><i>НОВОЕ</i><b>Твой план питания</b><small>{nutrition.calories} ккал · {nutrition.water} л воды в день</small></span><strong>Посмотреть меню →</strong></button>
+      </section>}
+
+      {screen === "exercises" && <section className="dashboard standalone-page">
+        <button className="stretching-shortcut stretching-shortcut-top" onClick={()=>setScreen("stretching")}><span>ОТДЕЛЬНЫЙ РАЗДЕЛ</span><strong>Растяжка для утра и вечера</strong><small>Выбери утренний, вечерний или полный комплекс</small><b>Открыть растяжку →</b></button>
+        <div className="page-intro"><span>ДВИГАЙСЯ ПРАВИЛЬНО</span><h2>Все упражнения</h2><p>Выбери зону тела и место тренировки. Нажми на карточку, чтобы увидеть фотографию и количество подходов. У планки есть таймер.</p></div>
+        <div className="section-title"><div><span>БИБЛИОТЕКА УПРАЖНЕНИЙ</span><h3>Найди подходящее упражнение</h3></div><p>{filteredExercises.length} из {exercises.length} упражнений</p></div>
+        <div className="exercise-filters"><div><span>Зона тела</span>{["Все","Пресс","Руки","Спина","Ноги","Ягодицы","Кардио"].map(item=><button key={item} className={muscleFilter===item?"active":""} onClick={()=>setMuscleFilter(item)}>{item}</button>)}<button className="stretch-filter" onClick={()=>setScreen("stretching")}>Растяжка ↗</button></div><div><span>Где</span>{["Все места","Дом","Зал"].map(item=><button key={item} className={placeFilter===item?"active":""} onClick={()=>setPlaceFilter(item)}>{item}</button>)}</div></div>
+        <div className="exercise-grid">{filteredExercises.map(({exercise:e,index:i})=><article key={e.name} onClick={()=>selectExercise(i)}><div className={`exercise-art art-${i%6}`}><img src={exercisePoster(e)} alt={`${e.name}: техника выполнения`}/><em>{e.place === "Зал" ? "GYM" : e.place === "Дом" ? "HOME" : "ALL"}</em><button aria-label={`Открыть упражнение: ${e.name}`}>→</button></div><div><small>{e.category} · {e.focus}</small><h4>{e.name}</h4><p>{e.reps}</p></div></article>)}</div>
+      </section>}
+
+      {screen === "stretching" && <section className="dashboard standalone-page stretching-page">
+        <button className="back" onClick={()=>setScreen("exercises")}>← Все упражнения</button>
+        <div className="stretching-hero">
+          <div className="stretching-hero-copy"><span>ВОССТАНОВЛЕНИЕ · ДВИЖЕНИЕ</span><h2>Немного времени<br/>для себя</h2><p>Выбери мягкий комплекс под своё настроение. Каждое движение делай плавно, без боли и задержки дыхания.</p><div className="stretching-hero-meta"><b>8 движений</b><b>Без оборудования</b><b>Дома или в зале</b></div></div>
+          <img src="/exercises/stretch.png" alt="Спокойная растяжка сидя на коврике" />
+        </div>
+        <div className="stretching-controls"><div><span>ТВОЙ КОМПЛЕКС</span><h3>{stretchMode === "morning" ? "Проснуться мягко" : stretchMode === "evening" ? "Отпустить напряжение" : "Полная растяжка"}</h3><p>{stretchMode === "morning" ? "Разбуди шею, спину и таз перед началом дня." : stretchMode === "evening" ? "Замедлись и расслабь мышцы после активного дня." : "Утренние и вечерние движения в одном комплексе."}</p></div><div className="stretching-tabs" role="group" aria-label="Выбрать комплекс растяжки">{([{"id":"morning","label":"Утренняя"},{"id":"evening","label":"Вечерняя"},{"id":"all","label":"Всё вместе"}] as const).map((option)=><button key={option.id} className={stretchMode===option.id?"active":""} aria-pressed={stretchMode===option.id} onClick={()=>setStretchMode(option.id)}>{option.label}</button>)}</div></div>
+        <div className="stretching-progress"><div><span>{visibleStretches.length} движения · {stretchMinutes} минут</span><strong>{stretchCompleted} из {visibleStretches.length} выполнено</strong></div><div className="stretching-progress-track"><span style={{width:`${stretchCompleted / visibleStretches.length * 100}%`}} /></div></div>
+        <div className="stretching-list">{visibleStretches.map((move,index)=><article className={completedStretches.includes(move.id)?"completed":""} key={move.id}><img src={move.image} alt={`Как выполнить: ${move.name}`} /><div className="stretching-move-copy"><span>{String(index+1).padStart(2,"0")} / {move.period === "morning" ? "Утро" : "Вечер"}</span><h4>{move.name}</h4><p>{move.instruction}</p><small>{move.seconds} секунд</small></div><button type="button" aria-label={`${completedStretches.includes(move.id)?"Отменить выполнение":"Отметить выполненным"}: ${move.name}`} aria-pressed={completedStretches.includes(move.id)} onClick={()=>setCompletedStretches((previous)=>previous.includes(move.id)?previous.filter((id)=>id!==move.id):[...previous,move.id])}>{completedStretches.includes(move.id)?"✓":"○"}<span>{completedStretches.includes(move.id)?"Готово":"Сделано"}</span></button></article>)}</div>
+        <p className="stretching-note">Если движение вызывает боль или головокружение, остановись. Растяжка должна ощущаться мягко и комфортно.</p>
+      </section>}
+
+      {screen === "progress" && <section className="dashboard standalone-page progress-page">
+        <div className="page-intro"><span>ТВОИ РЕЗУЛЬТАТЫ</span><h2>Прогресс тренировок</h2><p>Здесь сохраняются упражнения после нажатия «Готово» в конце тренировки.</p></div>
+        {!isAuthenticated ? <div className="progress-empty"><strong>Войди в аккаунт</strong><p>Чтобы сохранять тренировки и видеть историю прогресса, нужна авторизация.</p><button className="primary" onClick={()=>setScreen("signup")}>Войти или зарегистрироваться →</button></div> : progressLoading ? <div className="progress-empty"><strong>Загружаем прогресс…</strong></div> : progressError ? <div className="progress-empty error"><strong>Не удалось загрузить данные</strong><p>{progressError}</p><button className="secondary" onClick={()=>void openProgress()}>Попробовать снова</button></div> : <>
+          <div className="progress-stats"><article><small>ЗАВЕРШЕНО</small><strong>{progressEntries.length}</strong><span>упражнений</span></article><article><small>ВРЕМЯ</small><strong>{completedMinutes}</strong><span>минут</span></article><article><small>АКТИВНОСТЬ</small><strong>{completedDays}</strong><span>дней</span></article></div>
+          {progressEntries.length === 0 ? <div className="progress-empty"><strong>Первая тренировка впереди</strong><p>Открой упражнения, выполни тренировку и нажми «Готово» — результат появится здесь.</p><button className="primary" onClick={()=>setScreen("exercises")}>Выбрать упражнение →</button></div> : <div className="progress-history"><div className="section-title"><div><span>ИСТОРИЯ</span><h3>Последние тренировки</h3></div></div>{progressEntries.map((item,index)=><article key={item.id ?? `${item.completed_at}-${index}`}><div className="history-check">✓</div><div><strong>{item.exercise_name}</strong><span>{new Date(item.completed_at).toLocaleString("ru-RU", { day:"numeric", month:"long", hour:"2-digit", minute:"2-digit" })}</span></div><b>{Math.max(1,Math.round(Number(item.duration_seconds)/60))} мин</b></article>)}</div>}
+        </>}
       </section>}
 
       {screen === "nutrition" && <section className="nutrition-page">
@@ -334,7 +450,7 @@ export default function Home() {
 
       {screen === "session" && <section className="session">
         <div className="session-top"><button className="secondary" onClick={()=>{playSignal("finish");setScreen("plan")}}>✕ {t.finish}</button><button className={`sound-toggle ${soundOn?"on":""}`} onClick={()=>setSoundOn(!soundOn)}>{soundOn?"🔊":"🔇"} {t.sound}</button><span>{currentQueuePosition + 1} / {workoutQueue.length}</span></div>
-        <div className="session-card"><div className="media-panel"><div className={`big-art ${mediaMode === "video" ? "video-stage" : "animation-stage"}`}>{mediaMode === "video" ? <iframe key={exercises[current].videoId} src={`https://www.youtube-nocookie.com/embed/${exercises[current].videoId}?rel=0&modestbranding=1&playsinline=1`} title={`${exercises[current].name} — техника выполнения`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen/> : <img key={current} src={exercisePoster(exercises[current])} alt={`${exercises[current].name} — анимационная демонстрация`}/>}<i>{mediaMode === "video" ? "VIDEO GUIDE" : "LIVE MOTION"}</i>{mediaMode === "animation"&&<div className="motion-lines"><span/><span/><span/></div>}</div><div className="media-switch" role="group" aria-label="Формат демонстрации"><button className={mediaMode==="animation"?"active":""} onClick={()=>setMediaMode("animation")}><span>◉</span> Анимация</button><button className={mediaMode==="video"?"active":""} onClick={()=>setMediaMode("video")}><span>▶</span> Видео с YouTube</button></div></div><div className="session-info"><small>{exercises[current].focus}</small><h2>{exercises[current].name}</h2><p>{exercises[current].reps}</p><div className="timer">{time}</div><button className={`primary round ${running?"is-running":""}`} onClick={toggleTimer}>{running ? "Ⅱ" : "▶"}</button><span>{running ? t.pause : t.startTimer}</span></div></div>
+        <div className="session-card"><div className="media-panel"><div className="big-art photo-stage"><img key={current} src={exercisePoster(exercises[current])} alt={`${exercises[current].name} — фото упражнения`}/></div></div><div className="session-info"><small>{exercises[current].focus}</small><h2>{exercises[current].name}</h2><p>{exercises[current].category === "Кардио" ? `${cardioMinutes} минут` : exercises[current].reps}</p>{isTimedExercise && <><div className="timer">{time}</div><button className={`primary round ${running?"is-running":""}`} onClick={toggleTimer}>{running ? "Ⅱ" : "▶"}</button><span>{running ? t.pause : t.startTimer}</span></>}</div></div>
         <div className="session-nav"><button disabled={currentQueuePosition===0} onClick={()=>{playSignal("rest");selectExercise(workoutQueue[currentQueuePosition-1],workoutQueue)}}>← {t.previous}</button><div>{workoutQueue.map((exerciseIndex)=><i key={exerciseIndex} className={exerciseIndex===current?"active":""}/>)}</div><button onClick={()=>{playSignal("rest");currentQueuePosition < workoutQueue.length-1 ? selectExercise(workoutQueue[currentQueuePosition+1],workoutQueue) : void completeWorkout()}}>{currentQueuePosition === workoutQueue.length-1 ? t.done : t.next} →</button></div>
       </section>}
     </main>

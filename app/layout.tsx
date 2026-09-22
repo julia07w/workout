@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WORK OUT — персональные тренировки",
+  title: "тема лэйсби",
   description: "Персональные программы тренировок дома и в зале",
 };
 
